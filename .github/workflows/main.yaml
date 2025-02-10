@@ -1,0 +1,65 @@
+name: vprofile actions
+
+# Déclencheur du workflow
+on: workflow_dispatch # Permet d'exécuter ce workflow manuellement
+
+# Variables d'environnement globales
+env:
+  AWS_REGION: us-east-1 # Région AWS utilisée
+  ECR_REPOSITORY: vprofileapp # Nom du dépôt ECR
+  EKS_CLUSTER: vprofile-eks # Nom du cluster EKS
+
+jobs:
+  Testing: # Nom du job
+    runs-on: ubuntu-latest # Spécifie que le job s'exécute sur une machine virtuelle Ubuntu
+
+    steps: # Étapes à exécuter dans le job
+      - name: Code checkout
+        uses: actions/checkout@v4 # Vérifie le code source du dépôt
+
+      - name: Maven test
+        run: mvn test # Exécute les tests Maven
+
+      - name: Checkstyle
+        run: mvn checkstyle:checkstyle # Vérifie le code avec Checkstyle
+
+      # Configuration de Java 11 comme version par défaut (exigence de sonar-scanner à partir de la version 5.x)
+      - name: Set Java 11
+        uses: actions/setup-java@v3
+        with:
+         distribution: 'temurin' # Distribution Java à utiliser
+         java-version: '11' # Version de Java à installer
+
+      # Configuration de sonar-scanner
+      - name: Setup SonarQube
+        uses: warchant/setup-sonar-scanner@v7 # Action pour configurer sonar-scanner
+
+            # Exécution de sonar-scanner
+      - name: SonarQube Scan
+      #Url de Sonar
+      #Token d'authenthif pr SonarQube
+      #Organisation
+      #Chemin vers les sources du projet
+      #Chemin vers les rapports JUnit
+      #Chemin vers le rapport JaCoCo
+      #Chemin vers le rapport CheckStyle
+      #Chemin vers les fichiers binaires
+        run: sonar-scanner
+           -Dsonar.host.url=${{ secrets.SONAR_URL }} 
+           -Dsonar.login=${{ secrets.SONAR_TOKEN }} 
+           -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }} 
+           -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }} 
+           -Dsonar.sources=src/ 
+           -Dsonar.junit.reportsPath=target/surefire-reports/ 
+           -Dsonar.jacoco.reportsPath=target/jacoco.exec 
+           -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml 
+           -Dsonar.java.binaries=target/test-classes/com/visualpathit/account/controllerTest/ 
+
+      # Vérification de l'état de la Quality Gate de SonarQube
+      - name: SonarQube Quality Gate check
+        id: sonarqube-quality-gate-check
+        uses: sonarsource/sonarqube-quality-gate-action@master # Action pour vérifier l'état de la Quality Gate
+        timeout-minutes: 5 # Temps d'attente max pour la vérification
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Token d'authentification pour SonarQube
+          SONAR_HOST_URL: ${{ secrets.SONAR_URL }} # URL de SonarQube (optionnel)
