@@ -62,4 +62,4 @@ jobs:
         timeout-minutes: 5 # Temps d'attente max pour la vérification
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Token d'authentification pour SonarQube
-          #SONAR_HOST_URL: ${{ secrets.SONAR_URL }} # URL de SonarQube (optionnel)
+          SONAR_HOST_URL: ${{ secrets.SONAR_URL }} # URL de SonarQube (optionnel)
