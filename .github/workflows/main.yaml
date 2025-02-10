@@ -58,8 +58,9 @@ jobs:
       # Vérification de l'état de la Quality Gate de SonarQube
       - name: SonarQube Quality Gate check
         id: sonarqube-quality-gate-check
-        uses: sonarsource/sonarqube-quality-gate-action@master # Action pour vérifier l'état de la Quality Gate
+        uses: sonarsource/sonarqube-quality-gate-action@master
         timeout-minutes: 5 # Temps d'attente max pour la vérification
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Token d'authentification pour SonarQube
-          SONAR_HOST_URL: ${{ secrets.SONAR_URL }} # URL de Sonarqube (optionnel)
+          SONAR_HOST_URL: ${{ secrets.SONAR_URL }} # URL du serveur SonarQube
+          DEBUG: true # Activez le mode débogage
