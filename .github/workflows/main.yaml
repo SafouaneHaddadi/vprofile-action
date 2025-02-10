@@ -1,8 +1,12 @@
 name: vprofile actions
 
 # Déclencheur du workflow
-on: workflow_dispatch # Permet d'exécuter ce workflow manuellement
-
+#on: workflow_dispatch # Permet d'exécuter ce workflow manuellement
+on: 
+  push: # Permet d'exécuter ce workflow automatiquement après un push dans le dépôt
+    branches:
+      - main 
+      
 # Variables d'environnement globales
 env:
   AWS_REGION: us-east-1 # Région AWS utilisée
