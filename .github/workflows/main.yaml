@@ -64,3 +64,24 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Token d'authentification pour SonarQube
           SONAR_HOST_URL: ${{ secrets.SONAR_URL }} # URL du serveur SonarQube
           DEBUG: true # Activez le mode débogage
+
+  BUILD_AND_PUBLISH:   
+    needs: Testing # Ce job dépend du job 'Testing', il ne s'exécutera que si 'Testing' réussit.
+    runs-on: ubuntu-latest # Spécifie que le job s'exécutera sur un environnement Ubuntu.
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4 # Cette étape récupère le code source du dépôt GitHub.
+
+      - name: Build & Upload image to ECR
+        uses: appleboy/docker-ecr-action@master # Utilise l'action pour construire et télécharger l'image Docker sur Amazon ECR.
+        with:
+          access_key: ${{ secrets.AWS_ACCESS_KEY_ID }} # Utilise la clé d'accès AWS stockée dans les secrets pour l'authentification.
+          secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }} # Utilise la clé secrète AWS stockée dans les secrets pour l'authentification.
+          registry: ${{ secrets.REGISTRY }} # URL du registre ECR, stockée dans les secrets.
+          repo: ${{ env.ECR_REPOSITORY }} # Nom du référentiel ECR où l'image sera téléchargée, défini dans les variables d'environnement.
+          region: ${{ env.AWS_REGION }} # Région AWS où se trouve le registre ECR, définie dans les variables d'environnement.
+          tags: latest,${{ github.run_number }} # Définit les tags de l'image Docker, incluant 'latest' et ${{ github.run_number }} ajoute un identifiant unique basé sur le numéro de la run GitHub (qu'on peut voir dans github Actions '#X')
+          daemon_off: false # Indique si le démon Docker doit être désactivé ou non (false signifie qu'il sera actif).
+          dockerfile: ./Dockerfile # Chemin vers le Dockerfile utilisé pour construire l'image.
+          context: ./ # Spécifie le contexte de construction Docker, ici c'est le répertoire racine du projet.
