@@ -85,3 +85,44 @@ jobs:
           daemon_off: false # Indique si le démon Docker doit être désactivé ou non (false signifie qu'il sera actif).
           dockerfile: ./Dockerfile # Chemin vers le Dockerfile utilisé pour construire l'image.
           context: ./ # Spécifie le contexte de construction Docker, ici c'est le répertoire racine du projet.
+
+  DeployToEKS:
+    needs: BUILD_AND_PUBLISH # Cette étape dépend de l'étape précédente BUILD_AND_PUBLISH
+    runs-on: ubuntu-latest # Spécifie que le job s'exécute sur une machine virtuelle Ubuntu
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4 # Vérifie le code source du dépôt pour que les étapes suivantes puissent y accéder
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1 # Action pour configurer les identifiants AWS
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }} # ID de la clé d'accès AWS, stocké en tant que secret
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }} # Clé d'accès secrète AWS, stockée en tant que secret
+          aws-region: ${{ env.AWS_REGION }} # Région AWS à utiliser, définie dans les variables d'environnement
+
+    #pour permettre à kubectl de communiquer avec le cluster EKS spécifié. Cela utilise l'outil AWS CLI pour récupérer les info de configuration du cluster.
+      - name: Get Kube config file 
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }} # Met à jour le fichier de configuration Kubernetes pour interagir avec le cluster EKS
+
+      - name: Print config file
+        run: cat ~/.kube/config # Affiche le contenu du fichier de configuration Kubernetes pour vérifier que la configuration a été mise à jour correctement
+
+      - name: Login to ECR
+        run: kubectl create secret docker-registry regcred --docker-server=${{ secrets.REGISTRY }} --docker-username=AWS  --docker-password=$(aws ecr get-login-password) 
+        # Crée un secret Kubernetes pour se connecter à Amazon ECR (Elastic Container Registry).
+        # Ce secret contient les informations d'identification nécessaires pour se connecter à Amazon ECR, où vos images Docker sont stockées.
+        # la cmd aws ecr get-login-password récupère un mot de passe temporaire pour l'authentification auprès d'ECR. Cela permet à Kubernetes de tirer l'image Docker lors du déploiement.
+
+      - name: Deploy Helm
+        uses: bitovi/github-actions-deploy-eks-helm@v1.2.8 # Utilise une action prête à l'emploi pour déployer une application sur EKS avec Helm
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }} # ID de la clé d'accès AWS, stocké en tant que secret
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }} # Clé d'accès secrète AWS, stockée en tant que secret
+          aws-region: ${{ env.AWS_REGION }} # Région AWS à utiliser, définie dans les variables d'environnement
+          cluster-name: ${{ env.EKS_CLUSTER }} # Nom du cluster EKS où déployer l'application
+          # config-files: .github/values/dev.yaml # Chemin vers un fichier de configuration optionnel (commenté ici)
+          chart-path: helm/vprofilecharts # Le chemin vers le chart qu'on souhaite déployer. Dans ce cas, il s'agit de helm/vprofilecharts, qui contient la définition de notre app.
+          namespace: default # Namespace Kubernetes dans lequel l'appli sera déployée
+          values: appimage=${{ secrets.REGISTRY }}/${{ env.ECR_REPOSITORY }},apptag=${{ github.run_number }} # Variables à passer au chart Helm
+          name: vprofile-stack # Nom de la release Helm. Dans cet exemple, la release sera nommée vprofile-stack. Cela permet de gérer et de suivre les déploiements plus facilement.
