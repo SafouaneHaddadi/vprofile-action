@@ -83,4 +83,43 @@ jobs:
           dockerfile: ./Dockerfile 
           context: ./ # contexte de construction Docker, ici c'est le répertoire racine du projet
 
-  
+  DeployToEKS:
+    needs: BUILD_AND_PUBLISH # cette étape dépend de l'étape précédente BUILD_AND_PUBLISH
+    runs-on: ubuntu-latest 
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4 
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1 
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }} 
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 
+          aws-region: ${{ env.AWS_REGION }} 
+
+    #pour permettre à kubectl de communiquer avec le cluster EKS spécifié. 
+      - name: Get Kube config file 
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }} # Met à jour le fichier de configuration Kubernetes pour interagir avec le cluster EKS
+
+     # - name: Print config file
+      #  run: cat ~/.kube/config # affiche le contenu du fichier de configuration Kubernetes pour vérifier que la config a été màj correctement
+
+      - name: Login to ECR
+        run: kubectl create secret docker-registry regcred --docker-server=${{ secrets.REGISTRY }} --docker-username=AWS  --docker-password=$(aws ecr get-login-password) 
+        # crée un secret k8s pour se connecter à ECR 
+        # ce secret contient les info d'identification nécessaires pour se co à ECR
+        # la cmd aws ecr get-login-password récupère un mdp temp° pour l'authent° auprès d'ECR. Cela permet à k8s de pull l'image lors du déploiement
+
+      - name: Deploy Helm
+        uses: bitovi/github-actions-deploy-eks-helm@v1.2.8 
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }} 
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 
+          aws-region: ${{ env.AWS_REGION }} 
+          cluster-name: ${{ env.EKS_CLUSTER }} 
+          # config-files: .github/values/dev.yaml 
+          chart-path: helm/vprofilecharts # chemin vers le chart qui contient la définition de notre app
+          namespace: default # Namespace Kubernetes dans lequel l'appli sera déployée
+          values: appimage=${{ secrets.REGISTRY }}/${{ env.ECR_REPOSITORY }},apptag=${{ github.run_number }} 
+          name: vprofile-stack # nom de la release Helm. Permet de gérer et de suivre les déploiements plus facilement
